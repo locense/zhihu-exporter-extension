@@ -1,0 +1,25 @@
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 330px; color: #1f2937; background: #f7f9fc; font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; }
+.popup { display: grid; gap: 12px; padding: 16px; }
+h1 { margin: 0; font-size: 18px; }
+p { margin: 0; }
+.brand p { color: #667085; }
+button { border: 1px solid #d0d5dd; border-radius: 8px; padding: 8px 10px; color: #1f2937; background: #fff; cursor: pointer; }
+button:hover:not(:disabled) { border-color: #98a2b3; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.primary { color: #fff; border-color: #1677ff; background: #1677ff; font-weight: 700; }
+.quick-export { display: grid; gap: 7px; padding: 11px; border: 1px solid #e4e7ec; border-radius: 10px; background: #fff; }
+.quick-export p { color: #667085; }
+.button-grid, .queue-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.queue-actions { grid-template-columns: 1fr 1fr; }
+.message { min-height: 20px; color: #667085; }
+.message.error { color: #d92d20; }
+.message.success { color: #14804a; }
+@media (prefers-color-scheme: dark) {
+  body { color: #eaecf0; background: #0f1115; }
+  button { color: #eaecf0; background: #171a21; border-color: #2a303a; }
+  button.primary { background: #1677ff; border-color: #1677ff; }
+  .quick-export { background: #171a21; border-color: #2a303a; }
+  .brand p, .quick-export p, .message { color: #98a2b3; }
+}

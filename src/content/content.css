@@ -1,0 +1,98 @@
+#zhihu-exporter-toolbar {
+  --zhe-primary: #1772f6;
+  --zhe-primary-hover: #0f61d6;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+  padding: 8px 10px;
+  border: 1px solid #dfe5ec;
+  border-radius: 10px;
+  background: #fff;
+  color: #1f2329;
+  box-shadow: 0 4px 18px rgba(18, 39, 70, 0.08);
+  font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+  z-index: 2147483000;
+}
+
+#zhihu-exporter-toolbar.floating {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  margin: 0;
+  max-width: min(680px, calc(100vw - 40px));
+}
+
+#zhihu-exporter-toolbar.collection-toolbar {
+  max-width: 420px;
+}
+
+.zhihu-exporter-label {
+  font-weight: 700;
+  color: var(--zhe-primary);
+  margin-right: 2px;
+}
+
+.zhihu-exporter-button {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: var(--zhe-primary);
+  color: #fff;
+  cursor: pointer;
+  padding: 5px 9px;
+  font: inherit;
+  transition: background 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+}
+
+.zhihu-exporter-button:hover:not(:disabled) {
+  background: var(--zhe-primary-hover);
+  transform: translateY(-1px);
+}
+
+.zhihu-exporter-button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.zhihu-exporter-button:nth-of-type(4),
+.zhihu-exporter-button:nth-of-type(5) {
+  background: #f3f5f7;
+  color: #344054;
+  border-color: #d9dee5;
+}
+
+.zhihu-exporter-status {
+  color: #667085;
+  margin-left: 4px;
+}
+
+.zhihu-exporter-status[data-type="success"] { color: #14804a; }
+.zhihu-exporter-status[data-type="error"] { color: #d92d20; }
+
+#zhihu-exporter-toast {
+  position: fixed;
+  right: 24px;
+  top: 24px;
+  max-width: 360px;
+  padding: 11px 14px;
+  border-radius: 9px;
+  color: #fff;
+  background: #344054;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.22);
+  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+  z-index: 2147483647;
+}
+
+#zhihu-exporter-toast.success { background: #14804a; }
+#zhihu-exporter-toast.error { background: #d92d20; }
+
+@media (max-width: 640px) {
+  #zhihu-exporter-toolbar.floating {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    max-width: none;
+  }
+}

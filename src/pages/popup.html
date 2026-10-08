@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>知乎导出器</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="popup">
+    <div class="brand">
+      <h1>知乎导出器</h1>
+      <p id="queue-state">读取状态…</p>
+    </div>
+    <button id="open-manager" class="primary" type="button">打开任务与收藏夹管理器</button>
+    <div class="quick-export">
+      <p>当前页面快速导出</p>
+      <div class="button-grid">
+        <button data-format="markdown" type="button">Markdown</button>
+        <button data-format="text" type="button">TXT</button>
+        <button data-format="zip" type="button">图片 ZIP</button>
+      </div>
+    </div>
+    <div class="queue-actions">
+      <button id="pause" type="button">暂停</button>
+      <button id="resume" type="button">继续</button>
+    </div>
+    <p id="message" class="message"></p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

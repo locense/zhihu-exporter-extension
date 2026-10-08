@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>知乎导出器</title>
+  <link rel="stylesheet" href="manager.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">本地导出，不上传 Cookie</p>
+      <h1>知乎导出器</h1>
+      <p id="queue-summary" class="muted">正在读取任务状态…</p>
+    </div>
+    <div class="header-actions">
+      <button id="pause-button" class="button secondary" type="button">暂停队列</button>
+      <button id="resume-button" class="button secondary" type="button">继续队列</button>
+    </div>
+  </header>
+
+  <nav class="tabs" aria-label="功能切换">
+    <button class="tab active" data-tab="collections" type="button">收藏夹</button>
+    <button class="tab" data-tab="tasks" type="button">任务与历史</button>
+    <button class="tab" data-tab="settings" type="button">设置</button>
+  </nav>
+
+  <main>
+    <section class="panel active" data-panel="collections">
+      <div class="section-heading">
+        <div>
+          <h2>收藏夹批量导出</h2>
+          <p class="muted">读取当前登录账号的收藏夹，选择条目后合并生成 ZIP。</p>
+        </div>
+        <div class="button-row">
+          <button id="refresh-collections" class="button" type="button">刷新收藏夹</button>
+          <button id="load-selected" class="button secondary" type="button">读取所选条目</button>
+        </div>
+      </div>
+      <div class="output-bar">
+        <label for="batch-format">导出格式</label>
+        <select id="batch-format">
+          <option value="zip">Markdown + 图片 ZIP</option>
+          <option value="markdown">Markdown ZIP</option>
+          <option value="text">TXT ZIP</option>
+        </select>
+        <label for="collection-list-filter">收藏夹来源</label>`n        <select id="collection-list-filter">`n          <option value="all">全部</option>`n          <option value="created">我创建的</option>`n          <option value="followed">我关注的</option>`n        </select>`n        <label for="item-type-filter">条目类型</label>
+        <select id="item-type-filter">
+          <option value="all">全部</option>
+          <option value="article">专栏/文章</option>
+          <option value="answer">回答</option>
+          <option value="unsupported">想法/视频</option>
+        </select>
+        <button id="start-batch" class="button primary" type="button">开始批量下载</button>
+      </div>
+      <p id="collection-status" class="status-line" role="status"></p>
+      <div id="collection-list" class="collection-list"></div>
+    </section>
+
+    <section class="panel" data-panel="tasks">
+      <div class="section-heading">
+        <div>
+          <h2>任务与历史</h2>
+          <p class="muted">任务会保存在浏览器本地，关闭扩展页后仍可继续。</p>
+        </div>
+        <div class="button-row">
+          <button id="refresh-tasks" class="button" type="button">刷新</button>
+          <button id="export-failures" class="button secondary" type="button">导出失败报告</button>
+          <button id="clear-history" class="button danger" type="button">清理已完成记录</button>
+        </div>
+      </div>
+      <div id="task-counts" class="count-grid"></div>
+      <h3>批量归档</h3>
+      <div id="batch-list" class="batch-list"></div>
+      <h3>任务明细</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>标题</th>
+              <th>类型</th>
+              <th>格式</th>
+              <th>状态</th>
+              <th>重试</th>
+              <th>更新时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="task-list"></tbody>
+        </table>
+      </div>
+      <div class="button-row bottom-actions">
+        <button id="cancel-all" class="button danger" type="button">取消全部未完成任务</button>
+      </div>
+    </section>
+
+    <section class="panel" data-panel="settings">
+      <div class="section-heading">
+        <div>
+          <h2>导出设置</h2>
+          <p class="muted">降低并发和增加间隔可以减轻知乎访问限制的风险。</p>
+        </div>
+        <button id="save-settings" class="button primary" type="button">保存设置</button>
+      </div>
+      <form id="settings-form" class="settings-form">
+        <label>
+          <span>任务并发数</span>
+          <input id="setting-concurrency" type="number" min="1" max="3" step="1">
+          <small>建议 1，最高 3。</small>
+        </label>
+        <label>
+          <span>任务间隔（毫秒）</span>
+          <input id="setting-delay" type="number" min="0" max="60000" step="100">
+          <small>每篇文章开始前的等待时间。</small>
+        </label>
+        <label>
+          <span>失败重试次数</span>
+          <input id="setting-retries" type="number" min="0" max="10" step="1">
+          <small>网络错误、403 和 429 会按退避间隔重试。</small>
+        </label>
+        <label>
+          <span>图片并发数</span>
+          <input id="setting-image-concurrency" type="number" min="1" max="4" step="1">
+          <small>单篇文章内图片下载并发数。</small>
+        </label>
+        <label>
+          <span>ZIP 压缩等级</span>
+          <input id="setting-compression" type="number" min="0" max="9" step="1">
+          <small>0 最快，9 最小。</small>
+        </label>
+        <label class="check-line">
+          <input id="setting-frontmatter" type="checkbox">
+          <span>Markdown 添加标题、作者、来源等 frontmatter</span>
+        </label>
+        <label class="check-line">
+          <input id="setting-save-as" type="checkbox">
+          <span>单个文件下载时每次询问保存位置</span>
+        </label>
+      </form>
+      <div class="notice">
+        <strong>隐私说明</strong>
+        <p>扩展在本地读取当前登录页面并使用浏览器现有登录态；不读取、保存或上传明文 Cookie。若登录过期，任务会标记为失败并保留错误报告。</p>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="manager.js"></script>
+</body>
+</html>

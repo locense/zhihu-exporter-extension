@@ -1,0 +1,41 @@
+{
+  "name": "zhihu-exporter-extension",
+  "version": "1.0.2",
+  "description": "Chrome/Edge Manifest V3 extension for exporting Zhihu articles and collections locally.",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/locense/zhihu-exporter-extension.git"
+  },
+  "homepage": "https://github.com/locense/zhihu-exporter-extension#readme",
+  "bugs": {
+    "url": "https://github.com/locense/zhihu-exporter-extension/issues"
+  },
+  "keywords": [
+    "chrome-extension",
+    "edge-extension",
+    "manifest-v3",
+    "zhihu",
+    "markdown",
+    "exporter",
+    "javascript"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/check-build.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "verify": "npm run test && npm run build && npm run check"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3",
+    "turndown": "^7.2.0",
+    "turndown-plugin-gfm": "^1.0.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "linkedom": "^0.18.12"
+  }
+}

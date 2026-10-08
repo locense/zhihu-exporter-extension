@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "知乎导出器",
+  "short_name": "知乎导出",
+  "version": "1.0.2",
+  "description": "本地导出知乎文章、回答和收藏夹为 Markdown、TXT 或带图片的 ZIP。",
+  "minimum_chrome_version": "109",
+  "permissions": [
+    "alarms",
+    "downloads",
+    "offscreen",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://www.zhihu.com/*",
+    "https://zhuanlan.zhihu.com/*",
+    "https://*.zhimg.com/*",
+    "https://*.zhimg.cn/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "知乎导出器",
+    "default_popup": "pages/popup.html"
+  },
+  "options_ui": {
+    "page": "pages/manager.html",
+    "open_in_tab": true
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.zhihu.com/*",
+        "https://zhuanlan.zhihu.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
