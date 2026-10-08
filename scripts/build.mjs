@@ -52,7 +52,7 @@ for (const size of [16, 32, 48, 128]) {
   fs.copyFileSync(path.join(projectDir, 'assets', `icon${size}.png`), path.join(distDir, 'icons', `icon${size}.png`));
 }
 
-for (const document of ['README.md', 'TESTING.md', 'THIRD_PARTY_NOTICES.md']) {
+for (const document of ['README.md']) {
   fs.copyFileSync(path.join(projectDir, document), path.join(distDir, document));
 }
 

@@ -1,6 +1,8 @@
-# 知乎导出器
+# 知乎导出器：Chrome/Edge 知乎文章、回答、收藏夹批量下载扩展
 
-一个基于 Chrome / Edge Manifest V3 的知乎内容本地导出扩展，支持把文章、回答和收藏夹导出为 Markdown、TXT 或包含本地图片的 ZIP。
+一个基于 Chrome / Edge Manifest V3 的知乎内容本地导出扩展，支持把知乎文章、回答、专栏和收藏夹导出为 Markdown、TXT 或包含本地图片的 ZIP。
+
+搜索关键词：知乎导出器、知乎下载器、知乎文章导出、知乎回答导出、知乎收藏夹导出、知乎 Markdown、Zhihu Exporter、Zhihu Downloader。
 
 [下载最新版本](https://github.com/locense/zhihu-exporter-extension/releases/latest)
 
@@ -115,13 +117,11 @@ src/
 └── offscreen.js
 scripts/          构建和静态校验
 tests/            单元测试
-TESTING.md        浏览器兼容性测试清单
-THIRD_PARTY_NOTICES.md
 ```
 
 ## 自动化测试
 
-自动化测试覆盖扩展加载、单篇 Markdown/TXT/图片 ZIP、收藏夹标签解析、批量 ZIP 和 105 篇压力测试。详见 `AUTOMATED_TEST_REPORT.md`。
+自动化测试覆盖扩展加载、单篇 Markdown/TXT/图片 ZIP、收藏夹标签解析、批量 ZIP 和 105 篇压力测试。
 
 ## 已知限制
 
@@ -138,7 +138,7 @@ THIRD_PARTY_NOTICES.md
 - [fflate](https://github.com/101arrowz/fflate)：ZIP 生成。
 - [esbuild](https://github.com/evanw/esbuild)：开发构建。
 
-第三方许可证说明见 `THIRD_PARTY_NOTICES.md`。
+以上依赖均使用 MIT 许可证；发布或再分发前请保留对应许可证文本。
 
 ## 参考项目
 
