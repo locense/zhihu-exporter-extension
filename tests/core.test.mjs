@@ -2,10 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanImageUrl, parseZhihuUrl, sanitizeFilename } from '../src/shared/utils.js';
 import { parseHTML } from 'linkedom';
-import { extractCollectionMetaFromDocument, extractCollectionsFromAllTabs } from '../src/content/parser.js';
+import { extractCollectionMetaFromDocument, extractCollectionsFromAllTabs, extractCollectionsFromDocument } from '../src/content/parser.js';
 import { articleToMarkdown, markdownToPlainText } from '../src/shared/markdown.js';
 import { buildMergedCollectionIndex, createZip, prepareArticleFiles } from '../src/background/exporters.js';
 import { OUTPUT_FORMAT } from '../src/shared/constants.js';
+import { toPublicCollection } from '../src/shared/collection-summary.js';
 
 test('识别文章和回答链接', () => {
   assert.equal(parseZhihuUrl('https://zhuanlan.zhihu.com/p/123').type, 'article');
@@ -146,9 +147,15 @@ test('收藏夹读取会分别读取我创建和我关注两个标签', async ()
   assert.equal(result.listTypes.followed, 1);
 });
 test('收藏夹详情优先使用页面标题而不是数字 ID', () => {
-  const { document } = parseHTML('<!doctype html><html><head><meta property="og:title" content="我的收藏夹名称"></head><body><main></main></body></html>');
+  const { document } = parseHTML('<!doctype html><html><head><meta property="og:title" content="我的收藏夹名称"></head><body><main><h1>第一问答标题</h1><a href="https://www.zhihu.com/people/author">回答作者</a></main></body></html>');
   const meta = extractCollectionMetaFromDocument(document, 'https://www.zhihu.com/collection/846628126');
   assert.equal(meta.title, '我的收藏夹名称');
+});
+
+test('收藏夹列表优先使用收藏夹链接名称而不是内部问答标题', () => {
+  const { document } = parseHTML('<!doctype html><html><body><main><div class="CollectionCard"><a href="https://www.zhihu.com/collection/846628126"><span>我的真实收藏夹</span><h1>内部第一问答标题</h1></a><span>5 条内容</span></div></main></body></html>');
+  const result = extractCollectionsFromDocument(document, 'https://www.zhihu.com/collections');
+  assert.equal(result.collections[0].title, '我的真实收藏夹');
 });
 
 test('合并收藏夹索引包含多个收藏夹和汇总目录', () => {
@@ -165,4 +172,9 @@ test('合并收藏夹索引包含多个收藏夹和汇总目录', () => {
   assert.match(index, /## 常用收藏/);
   assert.match(index, /## 关注收藏/);
   assert.ok(index.includes(encodeURI('常用收藏/文章A.md')));
+});
+test('后台转换收藏夹摘要时保留来源类型', () => {
+  const summary = toPublicCollection({ id: '123', title: '我的收藏夹', url: 'https://www.zhihu.com/collection/123', listType: 'created' });
+  assert.equal(summary.title, '我的收藏夹');
+  assert.equal(summary.listType, 'created');
 });

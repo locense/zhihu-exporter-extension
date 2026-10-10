@@ -334,14 +334,46 @@ function cleanCollectionTitleText(value) {
     .trim();
 }
 
-function findCollectionTitle(card, fallback) {
-  const selectors = ['.CollectionCard-title', '[class*="CollectionCard-title"]', 'h1', 'h2', 'h3', '[class*="title"]'];
-  for (const selector of selectors) {
+function getAnchorPrimaryText(anchor) {
+  if (!anchor) return '';
+  for (const node of anchor.childNodes || []) {
+    if (node.nodeType === 3) {
+      const text = cleanCollectionTitleText(node.textContent || '');
+      if (text) return text;
+    }
+  }
+  for (const child of anchor.children || []) {
+    if (/^(H1|H2|H3|H4|ARTICLE)$/i.test(child.tagName || '')) continue;
+    const text = cleanCollectionTitleText(child.textContent || '');
+    if (text && text.length < 160) return text;
+  }
+  return '';
+}
+
+function findCollectionTitle(card, fallback, anchor = null) {
+  const specificSelectors = [
+    '.CollectionCard-title',
+    '[class*="CollectionCard-title"]',
+    '[class*="CollectionTitle"]',
+    '[class*="Collection-title"]'
+  ];
+  for (const scope of [anchor, card].filter(Boolean)) {
+    for (const selector of specificSelectors) {
+      const element = scope.querySelector?.(selector) || (scope.matches?.(selector) ? scope : null);
+      const text = cleanCollectionTitleText(element?.textContent || '');
+      if (text && text.length < 160) return text;
+    }
+  }
+
+  const anchorText = cleanCollectionTitleText(getAnchorPrimaryText(anchor) || fallback || '');
+  if (anchorText && anchorText.length < 160) return anchorText;
+
+  for (const selector of ['h2', 'h3', '[class*="title"]', 'h1']) {
     const element = card?.querySelector?.(selector);
     const text = cleanCollectionTitleText(element?.textContent || '');
     if (text && text.length < 160) return text;
   }
-  return cleanCollectionTitleText(fallback || '') || '未命名收藏夹';
+  return '未命名收藏夹';
 }
 
 export function extractCollectionsFromDocument(doc, baseUrl) {
@@ -353,7 +385,7 @@ export function extractCollectionsFromDocument(doc, baseUrl) {
     const parsed = parseZhihuUrl(url);
     if (parsed.type !== 'collection') continue;
     const card = anchor.closest('[class*="CollectionCard"], .List-item, li, article') || anchor.parentElement || anchor;
-    const title = findCollectionTitle(card, anchor.textContent);
+    const title = findCollectionTitle(card, anchor.textContent, anchor);
     const countMatch = cardText(card).match(/(\d+)\s*(?:篇|条|个内容|内容)/);
     const privacyText = cardText(card);
     collections.push({
@@ -526,14 +558,15 @@ export function extractCollectionMetaFromDocument(doc, baseUrl) {
   const metaTitle = cleanCollectionTitleText(
     doc.querySelector('meta[property="og:title"], meta[name="twitter:title"], meta[itemprop="name"]')?.getAttribute('content') || ''
   );
-  const title = cleanCollectionTitleText(findFirstText(doc, [
+  const specificTitle = cleanCollectionTitleText(findFirstText(doc, [
     '.CollectionDetailPage-title',
     '.CollectionDetail-title',
-    '.CollectionCard-title',
-    '[class*="CollectionDetail"] h1',
-    'main h1',
-    'h1'
-  ], root)) || metaTitle || pageTitle || `收藏夹-${parsed.id || ''}`;
+    '.CollectionHeader-title',
+    '[class*="CollectionDetailPage"] [class*="title"]',
+    '[class*="CollectionHeader"] [class*="title"]'
+  ], root));
+  const genericTitle = cleanCollectionTitleText(findFirstText(doc, ['main h1', 'h1'], root));
+  const title = specificTitle || metaTitle || pageTitle || genericTitle || `收藏夹-${parsed.id || ''}`;
   const pageText = cardText(root);
   const countMatch = pageText.match(/(\d+)\s*(?:篇|条|个内容|内容)/);
   return {

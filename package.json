@@ -1,6 +1,6 @@
 {
   "name": "zhihu-exporter-extension",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Chrome/Edge Manifest V3 extension for exporting Zhihu articles and collections locally.",
   "type": "module",
   "repository": {

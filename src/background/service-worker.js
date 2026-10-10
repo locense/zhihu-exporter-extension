@@ -1,4 +1,5 @@
 import { ERROR_CODE, MESSAGE, OUTPUT_FORMAT } from '../shared/constants.js';
+import { isPlaceholderCollectionTitle, toPublicCollection } from '../shared/collection-summary.js';
 import { dbGetAll, getSettings, saveSettings, STORES } from '../shared/db.js';
 import {
   bootstrapQueue,
@@ -26,16 +27,6 @@ function responseError(error) {
   };
 }
 
-function toPublicCollection(collection) {
-  return {
-    id: collection.id || '',
-    url: collection.url || (collection.id ? `https://www.zhihu.com/collection/${collection.id}` : ''),
-    title: collection.title || `收藏夹-${collection.id || ''}`,
-    count: collection.count ?? null,
-    visibility: collection.visibility || 'unknown',
-    description: collection.description || ''
-  };
-}
 
 async function openManager(collectionUrl = '') {
   const url = new URL(chrome.runtime.getURL('pages/manager.html'));
@@ -44,10 +35,6 @@ async function openManager(collectionUrl = '') {
   return { tabId: tab.id };
 }
 
-function isPlaceholderCollectionTitle(title, id) {
-  const value = String(title || '').trim();
-  return !value || value === `收藏夹-${id || ''}` || /^收藏夹-\d+$/.test(value);
-}
 
 async function loadCollections(collections) {
   const output = [];
@@ -56,9 +43,11 @@ async function loadCollections(collections) {
     try {
       const result = await extractCollectionInTab(publicCollection.url, { loadAll: true });
       const detailCollection = result.collection || {};
-      const title = isPlaceholderCollectionTitle(detailCollection.title, publicCollection.id)
-        ? publicCollection.title
-        : detailCollection.title;
+      const publicTitle = publicCollection.title;
+      const detailTitle = detailCollection.title;
+      const title = !isPlaceholderCollectionTitle(publicTitle, publicCollection.id)
+        ? publicTitle
+        : (!isPlaceholderCollectionTitle(detailTitle, publicCollection.id) ? detailTitle : publicTitle);
       output.push({
         ...publicCollection,
         ...detailCollection,
