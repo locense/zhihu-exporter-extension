@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "知乎导出器",
   "short_name": "知乎导出",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "本地导出知乎文章、回答和收藏夹为 Markdown、TXT 或带图片的 ZIP。",
   "minimum_chrome_version": "109",
   "permissions": [

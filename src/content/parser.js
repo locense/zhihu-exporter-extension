@@ -325,14 +325,23 @@ function cardText(element) {
   return normalizeWhitespace(element?.textContent || '');
 }
 
+function cleanCollectionTitleText(value) {
+  return normalizeWhitespace(value || '')
+    .replace(/\s*(?:私密|公开|仅自己)\s*$/g, '')
+    .replace(/\s*\d+\s*(?:篇|条|个内容|内容).*$/g, '')
+    .replace(/\s*[-|]\s*(?:收藏夹)?\s*知乎\s*$/g, '')
+    .replace(/\s*[-|]\s*收藏夹\s*$/g, '')
+    .trim();
+}
+
 function findCollectionTitle(card, fallback) {
   const selectors = ['.CollectionCard-title', '[class*="CollectionCard-title"]', 'h1', 'h2', 'h3', '[class*="title"]'];
   for (const selector of selectors) {
     const element = card?.querySelector?.(selector);
-    const text = normalizeWhitespace(element?.textContent || '');
+    const text = cleanCollectionTitleText(element?.textContent || '');
     if (text && text.length < 160) return text;
   }
-  return normalizeWhitespace(fallback || '') || '未命名收藏夹';
+  return cleanCollectionTitleText(fallback || '') || '未命名收藏夹';
 }
 
 export function extractCollectionsFromDocument(doc, baseUrl) {
@@ -513,14 +522,18 @@ function extractItemPublishedAt(container) {
 export function extractCollectionMetaFromDocument(doc, baseUrl) {
   const parsed = parseZhihuUrl(baseUrl);
   const root = getCollectionRoot(doc);
-  const title = findFirstText(doc, [
+  const pageTitle = cleanCollectionTitleText(doc.title);
+  const metaTitle = cleanCollectionTitleText(
+    doc.querySelector('meta[property="og:title"], meta[name="twitter:title"], meta[itemprop="name"]')?.getAttribute('content') || ''
+  );
+  const title = cleanCollectionTitleText(findFirstText(doc, [
     '.CollectionDetailPage-title',
     '.CollectionDetail-title',
     '.CollectionCard-title',
     '[class*="CollectionDetail"] h1',
     'main h1',
     'h1'
-  ], root) || `收藏夹-${parsed.id || ''}`;
+  ], root)) || metaTitle || pageTitle || `收藏夹-${parsed.id || ''}`;
   const pageText = cardText(root);
   const countMatch = pageText.match(/(\d+)\s*(?:篇|条|个内容|内容)/);
   return {

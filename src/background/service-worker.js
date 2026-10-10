@@ -44,15 +44,25 @@ async function openManager(collectionUrl = '') {
   return { tabId: tab.id };
 }
 
+function isPlaceholderCollectionTitle(title, id) {
+  const value = String(title || '').trim();
+  return !value || value === `收藏夹-${id || ''}` || /^收藏夹-\d+$/.test(value);
+}
+
 async function loadCollections(collections) {
   const output = [];
   for (const collection of collections || []) {
     const publicCollection = toPublicCollection(collection);
     try {
       const result = await extractCollectionInTab(publicCollection.url, { loadAll: true });
+      const detailCollection = result.collection || {};
+      const title = isPlaceholderCollectionTitle(detailCollection.title, publicCollection.id)
+        ? publicCollection.title
+        : detailCollection.title;
       output.push({
         ...publicCollection,
-        ...(result.collection || {}),
+        ...detailCollection,
+        title,
         items: result.items || [],
         reachedEnd: Boolean(result.reachedEnd),
         warnings: result.warnings || [],
@@ -79,7 +89,7 @@ function validateBatchPayload(payload) {
     .filter((collection) => collection.items.length > 0);
   if (!collections.length) throw new Error('没有选择可导出的文章');
   const format = Object.values(OUTPUT_FORMAT).includes(payload.format) ? payload.format : OUTPUT_FORMAT.ZIP;
-  return { collections, format };
+  return { collections, format, mergeCollections: Boolean(payload.mergeCollections) };
 }
 
 async function handleMessage(message, sender) {
@@ -99,8 +109,8 @@ async function handleMessage(message, sender) {
     case MESSAGE.LOAD_COLLECTIONS:
       return { collections: await loadCollections(message.collections || []) };
     case MESSAGE.START_BATCH: {
-      const { collections, format } = validateBatchPayload(message);
-      return enqueueBatch(collections, format);
+      const { collections, format, mergeCollections } = validateBatchPayload(message);
+      return enqueueBatch(collections, format, { mergeCollections });
     }
     case MESSAGE.GET_DASHBOARD_STATE:
       return getDashboardState();

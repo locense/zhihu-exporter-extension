@@ -292,6 +292,45 @@ export function buildCollectionIndex(collection, tasks) {
   return `${lines.join('\n')}\n`;
 }
 
+export function buildMergedCollectionIndex(collections, tasks) {
+  const lines = [
+    '# 知乎收藏合并导出',
+    '',
+    `- 收藏夹数量：${collections.length}`,
+    `- 内容条数：${tasks.length}`,
+    `- 成功：${tasks.filter((task) => task.status === 'success').length}`,
+    `- 失败：${tasks.filter((task) => task.status === 'failed').length}`,
+    `- 取消：${tasks.filter((task) => task.status === 'cancelled').length}`,
+    `- 导出时间：${new Date().toLocaleString('zh-CN')}`,
+    ''
+  ];
+
+  for (const collection of collections) {
+    const collectionTasks = tasks.filter((task) => String(task.collectionId || '') === String(collection.id || '') && task.collectionName === collection.title);
+    lines.push(`## ${collection.title || `收藏夹-${collection.id || ''}`}`, '');
+    lines.push(`- 来源：${({ created: '我创建的', followed: '我关注的', both: '创建+关注' })[collection.listType] || '未知'}`);
+    lines.push(`- 链接：${collection.url || ''}`);
+    lines.push(`- 内容：${collectionTasks.length} 条`, '');
+    collectionTasks.forEach((task, index) => {
+      const title = String(task.title || `未命名内容 ${index + 1}`).replace(/[\[\]]/g, '');
+      const file = String(task.filePath || '').replace(/\\/g, '/');
+      lines.push(`${index + 1}. ${file ? `[${title}](${encodeURI(file)})` : title}（${task.status}）`);
+    });
+    lines.push('');
+  }
+
+  const unmatched = tasks.filter((task) => !collections.some((collection) => String(collection.id || '') === String(task.collectionId || '') && task.collectionName === collection.title));
+  if (unmatched.length) {
+    lines.push('## 未归类内容', '');
+    unmatched.forEach((task, index) => {
+      const title = String(task.title || `未命名内容 ${index + 1}`).replace(/[\[\]]/g, '');
+      const file = String(task.filePath || '').replace(/\\/g, '/');
+      lines.push(`${index + 1}. ${file ? `[${title}](${encodeURI(file)})` : title}（${task.status}）`);
+    });
+  }
+  return `${lines.join('\n').trim()}\n`;
+}
+
 export function buildFailureReport(tasks) {
   const failed = tasks.filter((task) => ['failed', 'cancelled'].includes(task.status));
   return JSON.stringify({

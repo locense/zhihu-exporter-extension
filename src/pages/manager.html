@@ -44,13 +44,23 @@
           <option value="markdown">Markdown ZIP</option>
           <option value="text">TXT ZIP</option>
         </select>
-        <label for="collection-list-filter">收藏夹来源</label>`n        <select id="collection-list-filter">`n          <option value="all">全部</option>`n          <option value="created">我创建的</option>`n          <option value="followed">我关注的</option>`n        </select>`n        <label for="item-type-filter">条目类型</label>
+        <label for="collection-list-filter">收藏夹来源</label>
+        <select id="collection-list-filter">
+          <option value="all">全部</option>
+          <option value="created">我创建的</option>
+          <option value="followed">我关注的</option>
+        </select>
+        <label for="item-type-filter">条目类型</label>
         <select id="item-type-filter">
           <option value="all">全部</option>
           <option value="article">专栏/文章</option>
           <option value="answer">回答</option>
           <option value="unsupported">想法/视频</option>
         </select>
+        <label class="check-line merge-option">
+          <input id="merge-collections" type="checkbox">
+          <span>合并为一个压缩包</span>
+        </label>
         <button id="start-batch" class="button primary" type="button">开始批量下载</button>
       </div>
       <p id="collection-status" class="status-line" role="status"></p>

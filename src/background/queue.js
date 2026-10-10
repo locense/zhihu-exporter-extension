@@ -11,10 +11,11 @@ import {
   saveSettings,
   STORES
 } from '../shared/db.js';
-import { createId, errorToRecord, isAbortError, safePathSegment, sleep } from '../shared/utils.js';
+import { createId, errorToRecord, formatDateForFilename, isAbortError, safePathSegment, sleep } from '../shared/utils.js';
 import { parseArticleInTab } from './tab-reader.js';
 import {
   buildCollectionIndex,
+  buildMergedCollectionIndex,
   createZip,
   downloadBlob,
   prepareArticleFiles
@@ -145,52 +146,122 @@ export async function enqueueArticle(article, format) {
   return task;
 }
 
+function collectionSnapshot(collection, index) {
+  return {
+    id: collection.id || '',
+    title: String(collection.title || `收藏夹-${collection.id || index + 1}`).trim(),
+    url: collection.url || '',
+    visibility: collection.visibility || 'unknown',
+    listType: collection.listType || 'unknown',
+    count: collection.count ?? collection.items?.length ?? null
+  };
+}
+
+function createTaskForCollectionItem(collection, collectionTitle, item, batchId, format, settings, collectionDirectory = '') {
+  const task = taskBaseRecord({
+    url: item.url,
+    contentId: item.contentId,
+    type: item.type,
+    title: item.title,
+    author: item.author,
+    collectionId: collection.id || '',
+    collectionName: collectionTitle,
+    batchId,
+    mode: 'batch',
+    format,
+    maxRetries: settings.maxRetries
+  });
+  task.collectionDirectory = collectionDirectory;
+  if (item.article) runtimePayloads.set(task.id, item.article);
+  return task;
+}
+
 export async function enqueueBatch(collections, format, options = {}) {
   const settings = await getSettings();
   const batches = [];
   const tasks = [];
-  for (const collection of collections || []) {
-    const collectionTitle = collection.title || `收藏夹-${collection.id || Date.now()}`;
-    const directoryName = safePathSegment(collectionTitle, `收藏夹-${collection.id || Date.now()}`);
+  const sourceCollections = (collections || []).map(collectionSnapshot);
+  const now = new Date().toISOString();
+
+  if (options.mergeCollections && sourceCollections.length > 1) {
+    const mergedTitle = `收藏夹合并导出-${formatDateForFilename(new Date())}`;
+    const directoryName = safePathSegment(mergedTitle, '收藏夹合并导出');
+    const directoryByIndex = new Map();
+    const usedDirectories = new Set();
+    sourceCollections.forEach((collection, index) => {
+      let directory = safePathSegment(collection.title, `收藏夹-${collection.id || index + 1}`);
+      if (usedDirectories.has(directory)) directory = safePathSegment(`${directory}-${collection.id || index + 1}`, directory);
+      usedDirectories.add(directory);
+      directoryByIndex.set(index, directory);
+    });
+
+    const total = collections.reduce((sum, collection) => sum + (collection.items?.length || 0), 0);
     const batch = {
       id: createId('batch'),
-      collectionId: collection.id || '',
-      title: collectionTitle,
-      url: collection.url || '',
-      visibility: collection.visibility || 'unknown',
+      collectionId: 'merged',
+      title: mergedTitle,
+      url: '',
+      visibility: 'mixed',
       directoryName,
       format,
       status: BATCH_STATUS.PENDING,
-      total: collection.items?.length || 0,
+      total,
       success: 0,
       failed: 0,
       cancelled: 0,
-      pending: collection.items?.length || 0,
+      pending: total,
       running: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      mergeCollections: true,
+      collections: sourceCollections,
+      createdAt: now,
+      updatedAt: now,
       error: '',
       filePath: '',
       finalized: false
     };
     batches.push(batch);
 
-    for (const item of collection.items || []) {
-      const task = taskBaseRecord({
-        url: item.url,
-        contentId: item.contentId,
-        type: item.type,
-        title: item.title,
-        author: item.author,
+    sourceCollections.forEach((collection, index) => {
+      const collectionTitle = collection.title;
+      const collectionDirectory = directoryByIndex.get(index);
+      for (const item of collections[index]?.items || []) {
+        tasks.push(createTaskForCollectionItem(collection, collectionTitle, item, batch.id, format, settings, collectionDirectory));
+      }
+    });
+  } else {
+    for (let index = 0; index < sourceCollections.length; index += 1) {
+      const collection = sourceCollections[index];
+      const source = collections[index] || {};
+      const collectionTitle = collection.title || `收藏夹-${collection.id || Date.now()}`;
+      const directoryName = safePathSegment(collectionTitle, `收藏夹-${collection.id || Date.now()}`);
+      const batch = {
+        id: createId('batch'),
         collectionId: collection.id || '',
-        collectionName: collectionTitle,
-        batchId: batch.id,
-        mode: 'batch',
+        title: collectionTitle,
+        url: collection.url || '',
+        visibility: collection.visibility || 'unknown',
+        directoryName,
         format,
-        maxRetries: settings.maxRetries
-      });
-      if (item.article) runtimePayloads.set(task.id, item.article);
-      tasks.push(task);
+        status: BATCH_STATUS.PENDING,
+        total: source.items?.length || 0,
+        success: 0,
+        failed: 0,
+        cancelled: 0,
+        pending: source.items?.length || 0,
+        running: 0,
+        mergeCollections: false,
+        collections: [collection],
+        createdAt: now,
+        updatedAt: now,
+        error: '',
+        filePath: '',
+        finalized: false
+      };
+      batches.push(batch);
+
+      for (const item of source.items || []) {
+        tasks.push(createTaskForCollectionItem(collection, collectionTitle, item, batch.id, format, settings));
+      }
     }
   }
 
@@ -226,8 +297,14 @@ async function updateBatchStats(batchId) {
 async function processBatchTask(task, article, signal) {
   const batch = await dbGet(STORES.BATCHES, task.batchId);
   if (!batch) throw new Error('批量任务记录不存在');
+  const collectionDirectory = batch.mergeCollections && task.collectionDirectory
+    ? safePathSegment(task.collectionDirectory)
+    : '';
+  const outputDirectory = collectionDirectory
+    ? `${batch.directoryName}/${collectionDirectory}`
+    : batch.directoryName;
   const bundle = await prepareArticleFiles(article, batch.format, {
-    directory: batch.directoryName,
+    directory: outputDirectory,
     assetPrefix: article.contentId || task.contentId || task.id,
     includeFrontmatter: true,
     imageConcurrency: (await getSettings()).imageConcurrency,
@@ -456,11 +533,16 @@ async function finalizeBatch(batchId) {
         : task.filePath
     }));
     const entries = fileRecords.map((record) => ({ path: record.path, blob: record.blob }));
-    entries.push({ path: `${batch.directoryName}/index.md`, content: buildCollectionIndex({ title: batch.title, url: batch.url }, indexTasks) });
+    const indexContent = batch.mergeCollections
+      ? buildMergedCollectionIndex(batch.collections || [], indexTasks)
+      : buildCollectionIndex({ title: batch.title, url: batch.url }, indexTasks);
+    entries.push({ path: `${batch.directoryName}/index.md`, content: indexContent });
     entries.push({
       path: `${batch.directoryName}/export-report.json`,
       content: JSON.stringify({
-        collection: { id: batch.collectionId, title: batch.title, url: batch.url },
+        type: batch.mergeCollections ? 'merged' : 'collection',
+        collection: batch.mergeCollections ? undefined : { id: batch.collectionId, title: batch.title, url: batch.url },
+        collections: batch.mergeCollections ? (batch.collections || []) : undefined,
         generatedAt: new Date().toISOString(),
         total: tasks.length,
         success: tasks.filter((task) => task.status === TASK_STATUS.SUCCESS).length,

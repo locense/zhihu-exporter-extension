@@ -18,6 +18,7 @@ const elements = {
   collectionList: document.getElementById('collection-list'),
   collectionStatus: document.getElementById('collection-status'),
   batchFormat: document.getElementById('batch-format'),
+  mergeCollections: document.getElementById('merge-collections'),
   collectionListFilter: document.getElementById('collection-list-filter'),
   itemTypeFilter: document.getElementById('item-type-filter'),
   taskCounts: document.getElementById('task-counts'),
@@ -371,10 +372,13 @@ async function startBatch() {
     return;
   }
   const format = elements.batchFormat.value;
+  const mergeCollections = elements.mergeCollections.checked;
   setCollectionStatus(`正在创建 ${groups.reduce((sum, group) => sum + group.items.length, 0)} 个导出任务…`);
   try {
-    const result = await sendMessage({ type: MESSAGE.START_BATCH, collections: groups, format });
-    setCollectionStatus(`已创建 ${result.taskCount} 个任务，完成后会自动生成收藏夹 ZIP。`, 'success');
+    const result = await sendMessage({ type: MESSAGE.START_BATCH, collections: groups, format, mergeCollections });
+    setCollectionStatus(mergeCollections
+      ? `已创建 ${result.taskCount} 个任务，完成后会合并生成一个总 ZIP。`
+      : `已创建 ${result.taskCount} 个任务，完成后会自动生成收藏夹 ZIP。`, 'success');
     showToast('批量任务已创建', 'success');
     await loadDashboard();
     setActiveTab('tasks');

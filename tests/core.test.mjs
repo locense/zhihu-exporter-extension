@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanImageUrl, parseZhihuUrl, sanitizeFilename } from '../src/shared/utils.js';
 import { parseHTML } from 'linkedom';
-import { extractCollectionsFromAllTabs } from '../src/content/parser.js';
+import { extractCollectionMetaFromDocument, extractCollectionsFromAllTabs } from '../src/content/parser.js';
 import { articleToMarkdown, markdownToPlainText } from '../src/shared/markdown.js';
-import { createZip, prepareArticleFiles } from '../src/background/exporters.js';
+import { buildMergedCollectionIndex, createZip, prepareArticleFiles } from '../src/background/exporters.js';
 import { OUTPUT_FORMAT } from '../src/shared/constants.js';
 
 test('识别文章和回答链接', () => {
@@ -144,4 +144,25 @@ test('收藏夹读取会分别读取我创建和我关注两个标签', async ()
   assert.equal(result.collections.find((item) => item.id === '2').listType, 'created');
   assert.equal(result.listTypes.created, 1);
   assert.equal(result.listTypes.followed, 1);
+});
+test('收藏夹详情优先使用页面标题而不是数字 ID', () => {
+  const { document } = parseHTML('<!doctype html><html><head><meta property="og:title" content="我的收藏夹名称"></head><body><main></main></body></html>');
+  const meta = extractCollectionMetaFromDocument(document, 'https://www.zhihu.com/collection/846628126');
+  assert.equal(meta.title, '我的收藏夹名称');
+});
+
+test('合并收藏夹索引包含多个收藏夹和汇总目录', () => {
+  const collections = [
+    { id: '1', title: '常用收藏', url: 'https://www.zhihu.com/collection/1', listType: 'created' },
+    { id: '2', title: '关注收藏', url: 'https://www.zhihu.com/collection/2', listType: 'followed' }
+  ];
+  const tasks = [
+    { title: '文章A', collectionId: '1', collectionName: '常用收藏', filePath: '常用收藏/文章A.md', status: 'success' },
+    { title: '文章B', collectionId: '2', collectionName: '关注收藏', filePath: '关注收藏/文章B.md', status: 'success' }
+  ];
+  const index = buildMergedCollectionIndex(collections, tasks);
+  assert.match(index, /# 知乎收藏合并导出/);
+  assert.match(index, /## 常用收藏/);
+  assert.match(index, /## 关注收藏/);
+  assert.ok(index.includes(encodeURI('常用收藏/文章A.md')));
 });

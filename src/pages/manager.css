@@ -106,6 +106,18 @@ main { padding: 18px clamp(18px, 4vw, 56px) 56px; }
   background: var(--card);
 }
 
+.output-bar .check-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.output-bar .check-line input {
+  width: 16px;
+  height: 16px;
+}
+
 select, input[type="number"] {
   border: 1px solid #cfd6df;
   border-radius: 8px;
