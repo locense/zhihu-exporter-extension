@@ -12,6 +12,7 @@ import { isArticlePageUrl, isCollectionPageUrl, isQuestionPageUrl, normalizeWhit
 
 const TOOLBAR_ID = 'zhihu-exporter-toolbar';
 const CARD_BUTTON_CLASS = 'zhihu-exporter-card-button';
+const CARD_ACTIONS_CLASS = 'zhihu-exporter-card-actions';
 let currentRoute = '';
 let routeTimer = null;
 let cardObserver = null;
@@ -80,7 +81,7 @@ async function exportCurrentArticle(format, button) {
   }
 }
 
-async function exportUrl(url, button, title = '') {
+async function exportUrl(url, button, title = '', format = OUTPUT_FORMAT.MARKDOWN) {
   const originalText = button.textContent;
   button.disabled = true;
   button.textContent = '提交中…';
@@ -89,7 +90,7 @@ async function exportUrl(url, button, title = '') {
     const response = await sendRuntimeMessage({
       type: MESSAGE.EXPORT_URL,
       url,
-      format: OUTPUT_FORMAT.ZIP,
+      format,
       metadata: { title, author: { name: '', url: '' }, contentId: parsed.id || '', type: parsed.type }
     });
     if (!response?.ok) throw new Error(response?.error || '导出任务创建失败');
@@ -115,7 +116,30 @@ function findCardActionAnchor(card) {
   return card;
 }
 
-function createCardButton(item) {
+function createFormatSelect(defaultFormat = OUTPUT_FORMAT.MARKDOWN, className = 'zhihu-exporter-card-format') {
+  const select = document.createElement('select');
+  select.className = className;
+  select.title = '选择导出格式';
+  for (const [value, label] of [
+    [OUTPUT_FORMAT.MARKDOWN, 'Markdown'],
+    [OUTPUT_FORMAT.TEXT, 'TXT'],
+    [OUTPUT_FORMAT.ZIP, '图片 ZIP']
+  ]) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    select.append(option);
+  }
+  select.value = defaultFormat;
+  return select;
+}
+
+function createCardControls(item) {
+  const wrapper = document.createElement('span');
+  wrapper.className = CARD_ACTIONS_CLASS;
+  wrapper.dataset.zhihuExportUrl = item.url;
+  wrapper.setAttribute('data-zhihu-exporter-ui', 'true');
+  const formatSelect = createFormatSelect(OUTPUT_FORMAT.MARKDOWN);
   const button = document.createElement('button');
   button.type = 'button';
   button.className = CARD_BUTTON_CLASS;
@@ -124,24 +148,24 @@ function createCardButton(item) {
   button.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    exportUrl(item.url, button, item.title);
+    exportUrl(item.url, button, item.title, formatSelect.value);
   });
-  return button;
+  wrapper.append(formatSelect, button);
+  return wrapper;
 }
 
 function injectCardButtons() {
-  if (!document.body || isArticlePageUrl(location.href) || isCollectionPageUrl(location.href)) return;
+  const routeType = parseZhihuUrl(location.href).type;
+  if (!document.body || routeType === 'article' || isCollectionPageUrl(location.href)) return;
   for (const item of extractFeedItems(document, location.href)) {
     const card = item.card;
     if (!card) continue;
-    const existing = [...card.querySelectorAll(`.${CARD_BUTTON_CLASS}`)].some((button) => button.dataset.zhihuExportUrl === item.url);
+    const existing = [...card.querySelectorAll(`.${CARD_ACTIONS_CLASS}`)].some((element) => element.dataset.zhihuExportUrl === item.url);
     if (existing) continue;
-    const button = createCardButton(item);
-    button.dataset.zhihuExportUrl = item.url;
-    button.setAttribute('data-zhihu-exporter-ui', 'true');
+    const controls = createCardControls(item);
     const anchor = findCardActionAnchor(card);
-    if (anchor === card) card.append(button);
-    else anchor.prepend(button);
+    if (anchor === card) card.append(controls);
+    else anchor.prepend(controls);
   }
 }
 
@@ -157,7 +181,7 @@ function startCardObserver() {
   scheduleCardScan();
 }
 
-async function exportQuestionBatch(button, loadAll) {
+async function exportQuestionBatch(button, loadAll, format = OUTPUT_FORMAT.ZIP) {
   const originalText = button.textContent;
   button.disabled = true;
   button.textContent = loadAll ? '加载回答中…' : '读取回答中…';
@@ -172,7 +196,7 @@ async function exportQuestionBatch(button, loadAll) {
     const items = result.items.map(({ card, ...item }) => item);
     const response = await sendRuntimeMessage({
       type: MESSAGE.START_BATCH,
-      format: OUTPUT_FORMAT.ZIP,
+      format,
       mergeCollections: false,
       collections: [{
         id: `question-${result.question.id}`,
@@ -203,12 +227,13 @@ function createQuestionToolbar() {
   const label = document.createElement('span');
   label.className = 'zhihu-exporter-label';
   label.textContent = '问题导出';
-  const loadedButton = makeButton('导出已加载回答', '导出当前页面已经加载的回答', (event) => exportQuestionBatch(event.currentTarget, false));
-  const allButton = makeButton('加载并导出全部', '自动滚动并导出当前问题尽可能多的回答', (event) => exportQuestionBatch(event.currentTarget, true));
+  const formatSelect = createFormatSelect(OUTPUT_FORMAT.ZIP, 'zhihu-exporter-question-format');
+  const loadedButton = makeButton('导出已加载回答', '导出当前页面已经加载的回答', (event) => exportQuestionBatch(event.currentTarget, false, formatSelect.value));
+  const allButton = makeButton('加载并导出全部', '自动滚动并导出当前问题尽可能多的回答', (event) => exportQuestionBatch(event.currentTarget, true, formatSelect.value));
   const status = document.createElement('span');
   status.className = 'zhihu-exporter-status';
   status.textContent = '每个回答独立获取正文';
-  toolbar.append(label, loadedButton, allButton, status);
+  toolbar.append(label, formatSelect, loadedButton, allButton, status);
   const anchor = document.querySelector('.QuestionHeader') || document.querySelector('.QuestionHeader-title')?.parentElement;
   if (anchor?.parentElement) anchor.insertAdjacentElement('afterend', toolbar);
   else {
