@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanImageUrl, parseZhihuUrl, sanitizeFilename } from '../src/shared/utils.js';
 import { parseHTML } from 'linkedom';
-import { extractCollectionMetaFromDocument, extractCollectionsFromAllTabs, extractCollectionsFromDocument } from '../src/content/parser.js';
+import { collectQuestionAnswers, extractCollectionMetaFromDocument, extractCollectionsFromAllTabs, extractCollectionsFromDocument, extractFeedItems, extractQuestionAnswerItems } from '../src/content/parser.js';
 import { articleToMarkdown, markdownToPlainText } from '../src/shared/markdown.js';
 import { buildMergedCollectionIndex, createZip, prepareArticleFiles } from '../src/background/exporters.js';
 import { OUTPUT_FORMAT } from '../src/shared/constants.js';
@@ -177,4 +177,34 @@ test('后台转换收藏夹摘要时保留来源类型', () => {
   const summary = toPublicCollection({ id: '123', title: '我的收藏夹', url: 'https://www.zhihu.com/collection/123', listType: 'created' });
   assert.equal(summary.title, '我的收藏夹');
   assert.equal(summary.listType, 'created');
+});
+test('识别问题页面并发现首页卡片链接', () => {
+  assert.equal(parseZhihuUrl('https://www.zhihu.com/question/123').type, 'question');
+  const { document } = parseHTML(`<!doctype html><html><body><main>
+    <article class="ContentItem"><a href="https://zhuanlan.zhihu.com/p/10"><h2 class="ContentItem-title">文章卡片</h2></a></article>
+    <article class="AnswerCard" data-answerid="20"><a href="https://www.zhihu.com/question/123/answer/20"><h2 class="ContentItem-title">回答卡片</h2></a></article>
+  </main></body></html>`);
+  const items = extractFeedItems(document, 'https://www.zhihu.com/');
+  assert.equal(items.length, 2);
+  assert.ok(items.some((item) => item.type === 'article' && item.url.endsWith('/p/10')));
+  assert.ok(items.some((item) => item.type === 'answer' && item.url.endsWith('/answer/20')));
+});
+
+test('问题页收集所有已加载回答', async () => {
+  const { document, window } = parseHTML(`<!doctype html><html><body><main>
+    <h1 class="QuestionHeader-title">测试问题</h1>
+    <article class="AnswerCard" data-answerid="20"><a href="https://www.zhihu.com/question/123/answer/20">回答一</a></article>
+    <article class="AnswerCard" data-answerid="21"><a href="https://www.zhihu.com/question/123/answer/21">回答二</a></article>
+  </main></body></html>`);
+  window.scrollTo = () => {};
+  const result = await collectQuestionAnswers(document, window, {
+    baseUrl: 'https://www.zhihu.com/question/123',
+    maxSteps: 2,
+    stableRoundsToStop: 1,
+    waitMs: 1
+  });
+  assert.equal(result.question.id, '123');
+  assert.equal(result.question.title, '测试问题');
+  assert.equal(extractQuestionAnswerItems(document, 'https://www.zhihu.com/question/123').length, 2);
+  assert.equal(result.items.length, 2);
 });

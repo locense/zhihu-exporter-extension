@@ -11,7 +11,7 @@ import {
   saveSettings,
   STORES
 } from '../shared/db.js';
-import { createId, errorToRecord, formatDateForFilename, isAbortError, safePathSegment, sleep } from '../shared/utils.js';
+import { createId, errorToRecord, formatDateForFilename, isAbortError, parseZhihuUrl, safePathSegment, sleep } from '../shared/utils.js';
 import { parseArticleInTab } from './tab-reader.js';
 import {
   buildCollectionIndex,
@@ -173,6 +173,26 @@ function createTaskForCollectionItem(collection, collectionTitle, item, batchId,
   });
   task.collectionDirectory = collectionDirectory;
   if (item.article) runtimePayloads.set(task.id, item.article);
+  return task;
+}
+
+export async function enqueueUrl(url, format, metadata = {}) {
+  const parsed = parseZhihuUrl(url);
+  if (!['article', 'answer'].includes(parsed.type)) throw new Error('该链接不是可支持的文章或回答');
+  const settings = await getSettings();
+  const task = taskBaseRecord({
+    url: parsed.canonicalUrl || url,
+    contentId: parsed.id || '',
+    type: parsed.type,
+    title: metadata.title || '',
+    author: metadata.author || { name: '', url: '' },
+    format,
+    mode: 'url',
+    maxRetries: settings.maxRetries
+  });
+  await dbPut(STORES.TASKS, task);
+  schedulePump();
+  await notifyQueueUpdated();
   return task;
 }
 

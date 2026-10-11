@@ -551,6 +551,122 @@ function extractItemPublishedAt(container) {
   return findFirstText(container.ownerDocument, ['.ContentItem-time', '[class*="time"]'], container);
 }
 
+const FEED_CARD_SELECTOR = 'article, .AnswerCard, .QuestionAnswer-content, .ContentItem, .List-item, [class*="AnswerCard"], [class*="ArticleItem"], [class*="ContentItem"]';
+
+function findFeedCard(element) {
+  return element.closest?.(FEED_CARD_SELECTOR) || element.parentElement || element;
+}
+
+function findFeedCardTitle(card, fallback) {
+  const selectors = ['.ContentItem-title', '[class*="ContentItem-title"]', 'h1', 'h2', 'h3', '[class*="title"]'];
+  for (const selector of selectors) {
+    const text = normalizeWhitespace(card?.querySelector?.(selector)?.textContent || '');
+    if (text && text.length < 220) return text;
+  }
+  return truncateText(normalizeWhitespace(fallback || ''), 120) || '未命名内容';
+}
+
+function answerIdFromCard(card) {
+  const value = card?.getAttribute?.('data-answerid') ||
+    card?.getAttribute?.('data-answer-id') ||
+    card?.id?.match?.(/answer-(\d+)/)?.[1] ||
+    card?.querySelector?.('[data-answerid], [data-answer-id]')?.getAttribute?.('data-answerid') ||
+    card?.querySelector?.('[data-answerid], [data-answer-id]')?.getAttribute?.('data-answer-id');
+  return value ? String(value) : '';
+}
+
+function inferAnswerUrl(card, baseUrl) {
+  const answerId = answerIdFromCard(card);
+  const parsedBase = parseZhihuUrl(baseUrl);
+  const questionId = parsedBase.type === CONTENT_TYPE.QUESTION
+    ? parsedBase.id
+    : parsedBase.questionId || card?.querySelector?.('a[href*="/question/"]')?.getAttribute?.('href')?.match?.(/\/question\/(\d+)/)?.[1];
+  return answerId && questionId ? `https://www.zhihu.com/question/${questionId}/answer/${answerId}` : '';
+}
+
+export function extractFeedItems(doc, baseUrl) {
+  const items = [];
+  for (const link of doc.querySelectorAll('a[href]')) {
+    const url = normalizeUrl(link.getAttribute('href'), baseUrl);
+    const parsed = parseZhihuUrl(url);
+    if (![CONTENT_TYPE.ARTICLE, CONTENT_TYPE.ANSWER].includes(parsed.type)) continue;
+    const card = findFeedCard(link);
+    items.push({
+      url: parsed.canonicalUrl,
+      type: parsed.type,
+      title: findFeedCardTitle(card, link.textContent),
+      card
+    });
+  }
+
+  for (const card of doc.querySelectorAll('[data-answerid], [data-answer-id], [id^="answer-"]')) {
+    const url = inferAnswerUrl(card, baseUrl);
+    const parsed = parseZhihuUrl(url);
+    if (parsed.type !== CONTENT_TYPE.ANSWER) continue;
+    items.push({ url: parsed.canonicalUrl, type: parsed.type, title: findFeedCardTitle(card, card.textContent), card });
+  }
+
+  return uniqueBy(items, (item) => item.url);
+}
+
+export function extractQuestionAnswerItems(doc, baseUrl) {
+  const questionId = parseZhihuUrl(baseUrl).id;
+  return extractFeedItems(doc, baseUrl).filter((item) => {
+    if (item.type !== CONTENT_TYPE.ANSWER) return false;
+    return !questionId || parseZhihuUrl(item.url).questionId === questionId;
+  });
+}
+
+function findQuestionAdvanceControl(doc, win) {
+  return [...doc.querySelectorAll('button, a, [role="button"]')].find((element) => {
+    const text = normalizeWhitespace(element.textContent);
+    if (!/加载更多回答|查看更多回答|展开更多回答|更多回答|下一页回答/.test(text)) return false;
+    try {
+      const style = win.getComputedStyle(element);
+      return style.display !== 'none' && style.visibility !== 'hidden' && !element.disabled;
+    } catch {
+      return true;
+    }
+  }) || null;
+}
+
+export async function collectQuestionAnswers(doc, win, options = {}) {
+  const maxSteps = options.maxSteps ?? 40;
+  const stableRoundsToStop = options.stableRoundsToStop ?? 3;
+  const waitMs = options.waitMs ?? 800;
+  const collected = new Map();
+  let stableRounds = 0;
+  let reachedEnd = false;
+
+  for (let step = 0; step < maxSteps; step += 1) {
+    const before = collected.size;
+    for (const item of extractQuestionAnswerItems(doc, doc.baseURI || options.baseUrl || win.location?.href || "")) {
+      collected.set(item.url, item);
+    }
+    const control = findQuestionAdvanceControl(doc, win);
+    if (control) control.click();
+    else win.scrollTo(0, Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight));
+    await sleep(waitMs);
+    if (collected.size === before) stableRounds += 1;
+    else stableRounds = 0;
+    if (stableRounds >= stableRoundsToStop) {
+      reachedEnd = true;
+      break;
+    }
+  }
+
+  return {
+    question: {
+      id: parseZhihuUrl(options.baseUrl || doc.baseURI || win.location?.href || "").id,
+      title: findFirstText(doc, ['.QuestionHeader-title', 'main h1', 'h1']) || normalizeWhitespace(doc.title).replace(/\s*-\s*知乎\s*$/, ''),
+      url: doc.baseURI || win.location?.href || options.baseUrl || ""
+    },
+    items: [...collected.values()],
+    reachedEnd,
+    warnings: reachedEnd ? [] : ['已达到最大滚动次数，可能仍有未加载回答']
+  };
+}
+
 export function extractCollectionMetaFromDocument(doc, baseUrl) {
   const parsed = parseZhihuUrl(baseUrl);
   const root = getCollectionRoot(doc);

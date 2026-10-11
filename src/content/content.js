@@ -1,16 +1,21 @@
 import { MESSAGE, OUTPUT_FORMAT } from '../shared/constants.js';
 import {
+  collectQuestionAnswers,
   extractArticleFromDocument,
   extractCollectionItemsFromDocument,
   extractCollectionsFromAllTabs,
   extractCollectionsFromDocument,
+  extractFeedItems,
   loadAllCollectionItems
 } from './parser.js';
-import { isArticlePageUrl, isCollectionPageUrl, normalizeWhitespace, sleep } from '../shared/utils.js';
+import { isArticlePageUrl, isCollectionPageUrl, isQuestionPageUrl, normalizeWhitespace, parseZhihuUrl, sleep } from '../shared/utils.js';
 
 const TOOLBAR_ID = 'zhihu-exporter-toolbar';
+const CARD_BUTTON_CLASS = 'zhihu-exporter-card-button';
 let currentRoute = '';
 let routeTimer = null;
+let cardObserver = null;
+let cardTimer = null;
 
 function sendRuntimeMessage(message) {
   return new Promise((resolve, reject) => {
@@ -73,6 +78,144 @@ async function exportCurrentArticle(format, button) {
     button.disabled = false;
     button.textContent = originalText;
   }
+}
+
+async function exportUrl(url, button, title = '') {
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = '提交中…';
+  try {
+    const parsed = parseZhihuUrl(url);
+    const response = await sendRuntimeMessage({
+      type: MESSAGE.EXPORT_URL,
+      url,
+      format: OUTPUT_FORMAT.ZIP,
+      metadata: { title, author: { name: '', url: '' }, contentId: parsed.id || '', type: parsed.type }
+    });
+    if (!response?.ok) throw new Error(response?.error || '导出任务创建失败');
+    button.textContent = '已排队';
+    showToast(`已加入队列：${title || parsed.canonicalUrl}`, 'success');
+  } catch (error) {
+    button.textContent = '失败';
+    showToast(`导出失败：${error.message || error}`, 'error');
+  } finally {
+    setTimeout(() => {
+      button.disabled = false;
+      button.textContent = originalText;
+    }, 1800);
+  }
+}
+
+function findCardActionAnchor(card) {
+  const selectors = ['.ContentItem-actions', '.AnswerActions', '.RichContent-actions', '[class*="Actions"]', '[class*="actions"]'];
+  for (const selector of selectors) {
+    const element = card?.querySelector?.(selector);
+    if (element) return element;
+  }
+  return card;
+}
+
+function createCardButton(item) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = CARD_BUTTON_CLASS;
+  button.textContent = '导出';
+  button.title = `用知乎导出器下载：${item.title || item.url}`;
+  button.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    exportUrl(item.url, button, item.title);
+  });
+  return button;
+}
+
+function injectCardButtons() {
+  if (!document.body || isArticlePageUrl(location.href) || isCollectionPageUrl(location.href)) return;
+  for (const item of extractFeedItems(document, location.href)) {
+    const card = item.card;
+    if (!card) continue;
+    const existing = [...card.querySelectorAll(`.${CARD_BUTTON_CLASS}`)].some((button) => button.dataset.zhihuExportUrl === item.url);
+    if (existing) continue;
+    const button = createCardButton(item);
+    button.dataset.zhihuExportUrl = item.url;
+    button.setAttribute('data-zhihu-exporter-ui', 'true');
+    const anchor = findCardActionAnchor(card);
+    if (anchor === card) card.append(button);
+    else anchor.prepend(button);
+  }
+}
+
+function scheduleCardScan() {
+  clearTimeout(cardTimer);
+  cardTimer = setTimeout(injectCardButtons, 300);
+}
+
+function startCardObserver() {
+  if (cardObserver || !document.body) return;
+  cardObserver = new MutationObserver(scheduleCardScan);
+  cardObserver.observe(document.body, { childList: true, subtree: true });
+  scheduleCardScan();
+}
+
+async function exportQuestionBatch(button, loadAll) {
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = loadAll ? '加载回答中…' : '读取回答中…';
+  try {
+    const result = await collectQuestionAnswers(document, window, {
+      maxSteps: loadAll ? 40 : 1,
+      stableRoundsToStop: loadAll ? 3 : 1,
+      waitMs: loadAll ? 800 : 300,
+      baseUrl: location.href
+    });
+    if (!result.items.length) throw new Error('没有读取到可导出的回答');
+    const items = result.items.map(({ card, ...item }) => item);
+    const response = await sendRuntimeMessage({
+      type: MESSAGE.START_BATCH,
+      format: OUTPUT_FORMAT.ZIP,
+      mergeCollections: false,
+      collections: [{
+        id: `question-${result.question.id}`,
+        title: result.question.title || '知乎问题回答',
+        url: location.href,
+        visibility: 'unknown',
+        listType: 'question',
+        items
+      }]
+    });
+    if (!response?.ok) throw new Error(response?.error || '批量任务创建失败');
+    showToast(`已加入 ${response.taskCount} 个回答，完成后自动生成 ZIP`, 'success');
+  } catch (error) {
+    showToast(`导出失败：${error.message || error}`, 'error');
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
+}
+
+function createQuestionToolbar() {
+  const existing = document.getElementById(TOOLBAR_ID);
+  if (existing) return existing;
+  const toolbar = document.createElement('div');
+  toolbar.id = TOOLBAR_ID;
+  toolbar.className = 'zhihu-exporter-toolbar';
+  toolbar.setAttribute('data-zhihu-exporter-ui', 'true');
+  const label = document.createElement('span');
+  label.className = 'zhihu-exporter-label';
+  label.textContent = '问题导出';
+  const loadedButton = makeButton('导出已加载回答', '导出当前页面已经加载的回答', (event) => exportQuestionBatch(event.currentTarget, false));
+  const allButton = makeButton('加载并导出全部', '自动滚动并导出当前问题尽可能多的回答', (event) => exportQuestionBatch(event.currentTarget, true));
+  const status = document.createElement('span');
+  status.className = 'zhihu-exporter-status';
+  status.textContent = '每个回答独立获取正文';
+  toolbar.append(label, loadedButton, allButton, status);
+  const anchor = document.querySelector('.QuestionHeader') || document.querySelector('.QuestionHeader-title')?.parentElement;
+  if (anchor?.parentElement) anchor.insertAdjacentElement('afterend', toolbar);
+  else {
+    toolbar.classList.add('floating');
+    document.documentElement.appendChild(toolbar);
+  }
+  return toolbar;
 }
 
 function findInsertionAnchor() {
@@ -166,11 +309,14 @@ function routeChanged() {
   document.getElementById(TOOLBAR_ID)?.remove();
   if (!document.documentElement) return;
   if (isArticlePageUrl(route)) injectArticleToolbar().catch(() => {});
+  else if (isQuestionPageUrl(route)) createQuestionToolbar();
   else if (isCollectionPageUrl(route)) injectCollectionToolbar();
+  scheduleCardScan();
 }
 
 function bootstrapRouteWatcher() {
   routeChanged();
+  startCardObserver();
   if (routeTimer) return;
   routeTimer = setInterval(routeChanged, 1200);
   window.addEventListener('popstate', routeChanged, { passive: true });
@@ -209,6 +355,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ ok: true, items, reachedEnd: false, warnings: [] });
       }
     })().catch((error) => sendResponse({ ok: false, error: error.message, code: error.code }));
+    return true;
+  }
+
+  if (message.type === MESSAGE.EXTRACT_QUESTION_ANSWERS) {
+    collectQuestionAnswers(document, window, message.options || {})
+      .then((result) => sendResponse({ ok: true, ...result, items: result.items.map(({ card, ...item }) => item) }))
+      .catch((error) => sendResponse({ ok: false, error: error.message, code: error.code }));
     return true;
   }
 

@@ -8,6 +8,7 @@ import {
   clearHistory,
   enqueueArticle,
   enqueueBatch,
+  enqueueUrl,
   getDashboardState,
   getQueueSummary,
   pauseQueue,
@@ -81,12 +82,26 @@ function validateBatchPayload(payload) {
   return { collections, format, mergeCollections: Boolean(payload.mergeCollections) };
 }
 
+function createContextMenus() {
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({ id: 'zhihu-exporter-link', title: '用知乎导出器下载', contexts: ['link'] });
+    chrome.contextMenus.create({ id: 'zhihu-exporter-link-markdown', parentId: 'zhihu-exporter-link', title: 'Markdown', contexts: ['link'] });
+    chrome.contextMenus.create({ id: 'zhihu-exporter-link-text', parentId: 'zhihu-exporter-link', title: 'TXT', contexts: ['link'] });
+    chrome.contextMenus.create({ id: 'zhihu-exporter-link-zip', parentId: 'zhihu-exporter-link', title: '图片 ZIP', contexts: ['link'] });
+  });
+}
+
 async function handleMessage(message, sender) {
   switch (message?.type) {
     case MESSAGE.EXPORT_ARTICLE: {
       if (!message.article?.url) throw new Error('文章数据不完整');
       const format = Object.values(OUTPUT_FORMAT).includes(message.format) ? message.format : OUTPUT_FORMAT.MARKDOWN;
       const task = await enqueueArticle(message.article, format);
+      return { taskId: task.id };
+    }
+    case MESSAGE.EXPORT_URL: {
+      const format = Object.values(OUTPUT_FORMAT).includes(message.format) ? message.format : OUTPUT_FORMAT.ZIP;
+      const task = await enqueueUrl(message.url, format, message.metadata || {});
       return { taskId: task.id };
     }
     case MESSAGE.OPEN_MANAGER:
@@ -140,12 +155,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create('zhihu-exporter-queue', { periodInMinutes: 1 });
+  createContextMenus();
   bootstrapQueue().catch(() => {});
 });
 
 chrome.runtime.onStartup.addListener(() => {
   chrome.alarms.create('zhihu-exporter-queue', { periodInMinutes: 1 });
   bootstrapQueue().catch(() => {});
+});
+
+chrome.contextMenus.onClicked.addListener((info) => {
+  if (!String(info.menuItemId || '').startsWith('zhihu-exporter-link-') || !info.linkUrl) return;
+  const format = info.menuItemId.endsWith('-text') ? OUTPUT_FORMAT.TEXT : info.menuItemId.endsWith('-markdown') ? OUTPUT_FORMAT.MARKDOWN : OUTPUT_FORMAT.ZIP;
+  enqueueUrl(info.linkUrl, format, { title: info.selectionText || '' }).catch(() => {});
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {

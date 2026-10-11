@@ -16,6 +16,36 @@
   z-index: 2147483000;
 }
 
+.zhihu-exporter-card-button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 8px 0 0;
+  padding: 3px 9px;
+  border: 1px solid #b2ccff;
+  border-radius: 999px;
+  color: #175cd3;
+  background: #eff6ff;
+  cursor: pointer;
+  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+.zhihu-exporter-card-button:hover:not(:disabled) {
+  color: #fff;
+  background: var(--zhe-primary, #1772f6);
+  border-color: var(--zhe-primary, #1772f6);
+}
+
+.zhihu-exporter-card-button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.question-toolbar {
+  margin: 10px 0;
+}
+
 #zhihu-exporter-toolbar.floating {
   position: fixed;
   right: 20px;
@@ -89,7 +119,37 @@
 #zhihu-exporter-toast.error { background: #d92d20; }
 
 @media (max-width: 640px) {
-  #zhihu-exporter-toolbar.floating {
+  .zhihu-exporter-card-button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 8px 0 0;
+  padding: 3px 9px;
+  border: 1px solid #b2ccff;
+  border-radius: 999px;
+  color: #175cd3;
+  background: #eff6ff;
+  cursor: pointer;
+  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+.zhihu-exporter-card-button:hover:not(:disabled) {
+  color: #fff;
+  background: var(--zhe-primary, #1772f6);
+  border-color: var(--zhe-primary, #1772f6);
+}
+
+.zhihu-exporter-card-button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.question-toolbar {
+  margin: 10px 0;
+}
+
+#zhihu-exporter-toolbar.floating {
     left: 12px;
     right: 12px;
     bottom: 12px;

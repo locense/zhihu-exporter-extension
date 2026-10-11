@@ -53,6 +53,15 @@ export function parseZhihuUrl(input) {
       };
     }
 
+    const question = path.match(/\/question\/(\d+)/);
+    if (question) {
+      return {
+        type: CONTENT_TYPE.QUESTION,
+        id: question[1],
+        canonicalUrl: `${url.origin}/question/${question[1]}`
+      };
+    }
+
     const pin = path.match(/\/pin\/(\d+)/);
     if (pin) {
       return {
@@ -98,6 +107,10 @@ export function isSupportedArticleUrl(input) {
 export function isArticlePageUrl(input) {
   const parsed = parseZhihuUrl(input);
   return [CONTENT_TYPE.ARTICLE, CONTENT_TYPE.ANSWER].includes(parsed.type);
+}
+
+export function isQuestionPageUrl(input) {
+  return parseZhihuUrl(input).type === CONTENT_TYPE.QUESTION;
 }
 
 export function isCollectionPageUrl(input) {
